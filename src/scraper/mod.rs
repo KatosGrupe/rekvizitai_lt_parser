@@ -49,32 +49,36 @@ pub async fn scrape_rekvizitai(url: String) -> Entity {
                     .push_str(tags.next().expect("Could not find next tag").text().trim()),
                 "Mobilus telefonas" => {
                     let text = &tags.next().unwrap().display();
-                    let text = re
-                        .captures(text)
-                        .expect("Could not get caputures")
-                        .get(1)
-                        .expect("No capture under index 0")
-                        .as_str();
-                    let text = format!("{}{}", "https://rekvizitai.vz.lt", text);
-                    entity.mobile_phone.push_str(
-                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL"))
-                            .await,
-                    )
+                    entity
+                        .mobile_phone
+                        .push_str(&match re.captures(text).map(|c| async move {
+                            let link = c.get(1).unwrap().as_str();
+                            let url = format!("{}{}", "https://rekvizitai.vz.lt", link);
+                            extract_text_from_url(
+                                Url::parse(&url).expect("Could not parse ze URL"),
+                            )
+                            .await
+                        }) {
+                            Some(fut) => fut.await,
+                            None => "".to_string()
+                        });
                 }
                 "PVM mokėtojo kodas" => entity.vat_id.push_str(tags.next().unwrap().text().trim()),
                 "Telefonas" => {
                     let text = &tags.next().unwrap().display();
-                    let text = re
-                        .captures(text)
-                        .expect("Could not get caputures")
-                        .get(1)
-                        .expect("No capture under index 0")
-                        .as_str();
-                    let text = format!("{}{}", "https://rekvizitai.vz.lt", text);
-                    entity.phone.push_str(
-                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL"))
-                            .await,
-                    )
+                    entity
+                        .mobile_phone
+                        .push_str(&match re.captures(text).map(|c| async move {
+                            let link = c.get(1).unwrap().as_str();
+                            let url = format!("{}{}", "https://rekvizitai.vz.lt", link);
+                            extract_text_from_url(
+                                Url::parse(&url).expect("Could not parse ze URL"),
+                            )
+                            .await
+                        }) {
+                            Some(fut) => fut.await,
+                            None => "".to_string()
+                        });
                 }
                 "Tinklalapis" => entity.website.push_str(tags.next().unwrap().text().trim()),
                 "Vadovas" => entity.ceo.push_str(tags.next().unwrap().text().trim()),
