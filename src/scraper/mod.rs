@@ -2,19 +2,19 @@ extern crate image;
 extern crate regex;
 extern crate soup;
 use crate::entity::Entity;
-use crate::scraper::soup::HandleExt;
-use crate::scraper::soup::NodeExt;
 use image::GenericImageView;
-use log::{info, trace};
+use log::{debug, info, trace};
 use regex::Regex;
 use reqwest::Url;
 use soup::Soup;
+use crate::scraper::soup::QueryBuilderExt;
+use crate::scraper::soup::NodeExt;
 
-pub fn scrape_rekvizitai(url: String) -> Entity {
+pub async fn scrape_rekvizitai(url: String) -> Entity {
     trace!("Scraping {}", url);
     let log_url = url.clone();
     let url = Url::parse(&url).unwrap();
-    let document_string = reqwest::get(url).unwrap().text().unwrap();
+    let document_string = reqwest::get(url).await.unwrap().text().await.unwrap();
     let soup = Soup::new(&document_string[..]);
 
     let mut tags = soup
@@ -57,8 +57,7 @@ pub fn scrape_rekvizitai(url: String) -> Entity {
                         .as_str();
                     let text = format!("{}{}", "https://rekvizitai.vz.lt", text);
                     entity.mobile_phone.push_str(
-                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL"))
-                            .expect("Could not extract text"),
+                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL")).await,
                     )
                 }
                 "PVM mokėtojo kodas" => entity.vat_id.push_str(tags.next().unwrap().text().trim()),
@@ -72,8 +71,7 @@ pub fn scrape_rekvizitai(url: String) -> Entity {
                         .as_str();
                     let text = format!("{}{}", "https://rekvizitai.vz.lt", text);
                     entity.phone.push_str(
-                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL"))
-                            .expect("Could not extract text"),
+                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL")).await,
                     )
                 }
                 "Tinklalapis" => entity.website.push_str(tags.next().unwrap().text().trim()),
@@ -103,43 +101,35 @@ pub fn scrape_rekvizitai(url: String) -> Entity {
     entity
 }
 
-fn extract_text_from_url(url: Url) -> Option<String> {
-    let mut image = reqwest::get(url).expect("Could not download img");
-    // let mut buf: Vec<u8> = vec![];
+async fn extract_text_from_url(url: Url) -> String {
+    debug!("Image url: {}", url);
+    let image = reqwest::get(url).await.unwrap().bytes().await.unwrap();
+    let mut content = std::io::Cursor::new(image);
     {
-        let mut out = std::fs::File::create("test.gif").expect("failed to create file");
-        std::io::copy(&mut image, &mut out).expect("Could not copy to in-memory");
+        let mut out = std::fs::File::create("test.gif").unwrap();
+        std::io::copy(&mut content, &mut out).unwrap();
     }
 
-    let txt = extract_text_from_file("test.gif".to_string()).expect("Could not extract");
+    let txt = extract_text_from_file("test.gif".to_string());
     trace!("Extracted from image: {}", txt);
-    Some(txt)
+    txt
 }
 
-fn extract_text_from_file(img: String) -> Option<String> {
-    if let Ok(img) = image::open(img) {
-        return extract_text_from_image(img);
-    }
-    None
+fn extract_text_from_file(img: String) -> String {
+    let img = image::open(img).unwrap();
+    extract_text_from_image(img)
 }
 
-fn extract_text_from_image(img: image::DynamicImage) -> Option<String> {
+fn extract_text_from_image(img: image::DynamicImage) -> String {
     let mut new_img =
         image::DynamicImage::new_rgba8(100 + img.dimensions().0, 100 + img.dimensions().1);
     image::imageops::overlay(&mut new_img, &img, 50, 50);
 
-    if let Err(_) = new_img.save("data/test.png") {
-        return None;
-    }
+    new_img.save("data/test.png").unwrap();
 
-    if let Ok(mut lt) = leptess::LepTess::new(None, "lit") {
-        lt.set_image("data/test.png");
-        if let Ok(result) = lt.get_utf8_text() {
-            return Some(result);
-        }
-    }
-
-    None
+    let mut lt = leptess::LepTess::new(None, "lit").unwrap();
+    lt.set_image("data/test.png").unwrap();
+    lt.get_utf8_text().unwrap()
 }
 
 #[cfg(test)]

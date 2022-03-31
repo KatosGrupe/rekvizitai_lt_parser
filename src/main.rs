@@ -13,7 +13,7 @@ struct Request {
 
 async fn parse(item: web::Json<Request>) -> HttpResponse {
     info!("model: {:?}", &item);
-    let result = scrape_rekvizitai(item.url.clone());
+    let result = scrape_rekvizitai(item.url.clone()).await;
     HttpResponse::Ok().json(result)
 }
 
@@ -25,7 +25,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .wrap(middleware::Logger::default())
-            .data(web::JsonConfig::default().limit(4096))
+            .app_data(web::JsonConfig::default().limit(4096))
             .service(web::resource("/extractor").route(web::post().to(parse)))
     })
     .bind("0.0.0.0:8080")?

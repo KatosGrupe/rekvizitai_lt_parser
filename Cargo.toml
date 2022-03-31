@@ -2,7 +2,7 @@
 name = "rekvizitai_lt_parser"
 version = "0.1.0"
 authors = ["hitwright"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,7 +18,7 @@ json = "*"
 leptess = "*"
 log = "*"
 regex = "*"
-reqwest = "0.9.24"
-serde = "*"
+reqwest = "*"
+serde = { features = ["derive"], version = "*" }
 soup = "*"
 tempfile = "*"
