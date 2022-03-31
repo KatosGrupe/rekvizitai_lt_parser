@@ -2,13 +2,13 @@ extern crate image;
 extern crate regex;
 extern crate soup;
 use crate::entity::Entity;
+use crate::scraper::soup::NodeExt;
+use crate::scraper::soup::QueryBuilderExt;
 use image::GenericImageView;
 use log::{debug, info, trace};
 use regex::Regex;
 use reqwest::Url;
 use soup::Soup;
-use crate::scraper::soup::QueryBuilderExt;
-use crate::scraper::soup::NodeExt;
 
 pub async fn scrape_rekvizitai(url: String) -> Entity {
     trace!("Scraping {}", url);
@@ -57,7 +57,8 @@ pub async fn scrape_rekvizitai(url: String) -> Entity {
                         .as_str();
                     let text = format!("{}{}", "https://rekvizitai.vz.lt", text);
                     entity.mobile_phone.push_str(
-                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL")).await,
+                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL"))
+                            .await,
                     )
                 }
                 "PVM mokėtojo kodas" => entity.vat_id.push_str(tags.next().unwrap().text().trim()),
@@ -71,7 +72,8 @@ pub async fn scrape_rekvizitai(url: String) -> Entity {
                         .as_str();
                     let text = format!("{}{}", "https://rekvizitai.vz.lt", text);
                     entity.phone.push_str(
-                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL")).await,
+                        &extract_text_from_url(Url::parse(&text).expect("Could not parse ze URL"))
+                            .await,
                     )
                 }
                 "Tinklalapis" => entity.website.push_str(tags.next().unwrap().text().trim()),
@@ -84,14 +86,12 @@ pub async fn scrape_rekvizitai(url: String) -> Entity {
         }
     }
     let header = soup.tag("h1").attr("class", "fn").find().unwrap().text();
-    let re = Regex::new(r#"(.+), ([A-ZĄČĘĖĮŠŲŪŽš]+)"#)
-        .expect("Could not create regex parser 2");
+    let re = Regex::new(r#"(.+), ([A-ZĄČĘĖĮŠŲŪŽš]+)"#).expect("Could not create regex parser 2");
     for cap in re.captures_iter(&header) {
         entity.name.push_str(&cap[1]);
         entity.entity_type.push_str(&cap[2]);
     }
-    let re = Regex::new(r#"([A-ZĄČĘĖĮŠŲŪŽš]+) "(.+)""#)
-        .expect("Could not create regex parser 2");
+    let re = Regex::new(r#"([A-ZĄČĘĖĮŠŲŪŽš]+) "(.+)""#).expect("Could not create regex parser 2");
     for cap in re.captures_iter(&header) {
         entity.name.push_str(&cap[2]);
         entity.entity_type.push_str(&cap[1]);
