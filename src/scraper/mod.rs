@@ -17,7 +17,7 @@ pub async fn scrape_rekvizitai(url: String) -> Entity {
     let document_string = reqwest::get(url).await.unwrap().text().await.unwrap();
     let soup = Soup::new(&document_string[..]);
 
-    let mut tags = soup
+    let tags = soup
         .tag("div")
         .attr("class", "info")
         .find()
@@ -31,7 +31,7 @@ pub async fn scrape_rekvizitai(url: String) -> Entity {
     let mut entity = Entity::new();
 
     let re = Regex::new(r#"src="([a-zA-Z0-9%/\.]+)""#).expect("Could not create regex parser");
-    while let Some(tag) = tags.next() {
+    for tag in tags {
         let mut tags = tag.tag("td").find_all();
 
         while let Some(tag) = tags.next() {
@@ -175,8 +175,6 @@ mod tests {
         expected.name.push_str("JOROMA");
         expected.entity_type.push_str("MB");
         expected.registration_id.push_str("305413988");
-        // expected.vat_id.push_str("LT100001121613");
-        // expected.website.push_str("http://www.kata.lt");
 
         assert_eq!(
             expected,
