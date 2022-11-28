@@ -19,7 +19,6 @@ async fn parse(item: web::Json<Request>) -> HttpResponse {
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web,rekvizitai_lt_parser=debug");
     env_logger::init();
 
     HttpServer::new(|| {
