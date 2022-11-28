@@ -54,13 +54,11 @@ pub async fn scrape_rekvizitai(url: String) -> Entity {
                         .push_str(&match re.captures(text).map(|c| async move {
                             let link = c.get(1).unwrap().as_str();
                             let url = format!("{}{}", "https://rekvizitai.vz.lt", link);
-                            extract_text_from_url(
-                                Url::parse(&url).expect("Could not parse ze URL"),
-                            )
-                            .await
+                            extract_text_from_url(Url::parse(&url).expect("Could not parse ze URL"))
+                                .await
                         }) {
                             Some(fut) => fut.await,
-                            None => "".to_string()
+                            None => "".to_string(),
                         });
                 }
                 "PVM mokėtojo kodas" => entity.vat_id.push_str(tags.next().unwrap().text().trim()),
@@ -71,13 +69,11 @@ pub async fn scrape_rekvizitai(url: String) -> Entity {
                         .push_str(&match re.captures(text).map(|c| async move {
                             let link = c.get(1).unwrap().as_str();
                             let url = format!("{}{}", "https://rekvizitai.vz.lt", link);
-                            extract_text_from_url(
-                                Url::parse(&url).expect("Could not parse ze URL"),
-                            )
-                            .await
+                            extract_text_from_url(Url::parse(&url).expect("Could not parse ze URL"))
+                                .await
                         }) {
                             Some(fut) => fut.await,
-                            None => "".to_string()
+                            None => "".to_string(),
                         });
                 }
                 "Tinklalapis" => entity.website.push_str(tags.next().unwrap().text().trim()),

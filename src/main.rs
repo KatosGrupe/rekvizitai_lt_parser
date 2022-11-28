@@ -3,8 +3,15 @@ use serde::{Deserialize, Serialize};
 
 mod entity;
 mod scraper;
+use clap::Parser;
 use log::info;
 use scraper::scrape_rekvizitai;
+
+#[derive(Parser)]
+struct Args {
+    #[arg(short, long, default_value = "127.0.0.1:8080")]
+    listen_ip: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Request {
@@ -20,6 +27,7 @@ async fn parse(item: web::Json<Request>) -> HttpResponse {
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
+    let args = Args::parse();
 
     HttpServer::new(|| {
         App::new()
@@ -27,7 +35,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::JsonConfig::default().limit(4096))
             .service(web::resource("/extractor").route(web::post().to(parse)))
     })
-    .bind("0.0.0.0:8080")?
+    .bind(args.listen_ip)?
     .run()
     .await
 }
