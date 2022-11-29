@@ -1,26 +1,27 @@
+# Description
+
+RestAPI service to scrape https://rekvizitai.vz.lt page info for clients and return as JSON.
+
+# Requirements
+
+- Leptonica
+- Tesseract
+- Clang
 
 
-# Aprašymas
+# Compilation
 
-RestAPI servisas skirtas paversti rekvizitai.vz.lt puslapio įmonės duomenis į kompiuteriui labiau standartizuotą formatą JSON. Naudoja OCR išgauti įmonės telefono numeriams.  
+- Install requirements: `sudo apt-get install libleptonica-dev libtesseract-dev clang`
+- Use cargo to build the executable `cargo build`
 
+# Use
 
-# Reikalavimai
+- POST request at endpoint at /extrator with body
+``` json
+ {'url': 'https://rekvizitai.vz.lt/imone/...'}
+```
+- Use --help flag for additional info
 
--   lept biblioteka
+# Testing
 
-
-# Kompiliavimas
-
--   Paleisti komandą "cargo build"
-
-
-# Instaliavimas
-
--   sukurti systemd servisą kuris nurodytų į iškompiliuotą executable
-
-
-# Testavimas
-
-Nėra  
-
+None
