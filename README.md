@@ -11,7 +11,8 @@ RestAPI service to scrape https://rekvizitai.vz.lt page info for clients and ret
 
 # Compilation
 
-- Install requirements: `sudo apt-get install libleptonica-dev libtesseract-dev clang`
+- Install requirements: `sudo apt install libleptonica-dev libtesseract-dev clang`
+- Install language package: `sudo apt install tesseract-ocr-lit`
 - Use cargo to build the executable `cargo build`
 
 # Use
