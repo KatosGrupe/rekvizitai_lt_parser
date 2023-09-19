@@ -10,6 +10,10 @@ use log::info;
 struct Args {
     #[arg(short, long, default_value = "127.0.0.1:8080")]
     listen_ip: String,
+    #[arg(short, long, default_value = "key.pem")]
+    key: String,
+    #[arg(short, long, default_value = "cert.pem")]
+    cert: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -29,13 +33,23 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
     let args = Args::parse();
 
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file(args.key, SslFiletype::PEM)
+        .unwrap();
+    builder.set_certificate_chain_file(args.cert).unwrap();
+
+    let config = Configuration::parse();
+    let bind = config.bind.clone();
+
+
     HttpServer::new(|| {
         App::new()
             .wrap(middleware::Logger::default())
             .app_data(web::JsonConfig::default().limit(4096))
             .service(web::resource("/extractor").route(web::get().to(parse)))
     })
-    .bind(args.listen_ip)?
+    .bind_openssl(args.listen_ip, builder)?
     .run()
     .await
 }
