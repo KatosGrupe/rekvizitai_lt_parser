@@ -76,28 +76,38 @@ pub async fn scrape_rekvizitai(data: &str) -> Entity {
 }
 
 pub async fn download_and_extract_text(url: &str) -> String {
+    info!("Extracting url: {url}");
     let dir = tempfile::tempdir().unwrap();
 
-    let image_bytes = reqwest::get(url).await.unwrap().bytes().await.unwrap();
-    let mut orig_image_path = dir.path().join("orig_image.gif");
-    let mut orig_image_file = File::create(orig_image_path.clone()).await.unwrap();
-    orig_image_file.write_all(&image_bytes).await.unwrap();
+    let image_bytes = reqwest::get(url).await
+                                       .expect("Failed to reach url")
+                                       .bytes()
+                                       .await
+                                       .expect("Failed to download image");
+    let orig_image_path = dir.path().join("orig_image.gif");
+    let mut orig_image_file = File::create(orig_image_path.clone())
+        .await
+        .expect("Failed to create image file to write to");
+    orig_image_file.write_all(&image_bytes).await.expect("Failed to save orig image");
 
-    //increase dimensions for better recognition
-    let dimensions = image::image_dimensions(orig_image_path.clone()).unwrap();
-    let old_img = image::io::Reader::open(orig_image_path).unwrap().decode().unwrap();
+    info!("Increasing dimensions for better OCR recognition for {url}");
+    let dimensions = image::image_dimensions(orig_image_path.clone()).expect("Failed to get image dimensions");
+    let old_img = image::io::Reader::open(orig_image_path)
+        .expect("Failed to open downloaded image")
+        .decode()
+        .expect("Failed to decode downloaded image");
     let mut new_img =
         image::DynamicImage::new_rgba8(100 + dimensions.0, 100 + dimensions.1);
     image::imageops::overlay(&mut new_img, &old_img, 50, 50);
 
-    let mut new_image_path = dir.path().join("new_image.png");
-    new_img.save(new_image_path.clone()).unwrap();
+    let new_image_path = dir.path().join("new_image.png");
+    new_img.save(new_image_path.clone()).expect("Failed to save edited image");
 
-    //run OCR
-    let mut lt = leptess::LepTess::new(None, "lit").unwrap();
-    lt.set_image(new_image_path).unwrap();
+    info!("Running OCR for {url}");
+    let mut lt = leptess::LepTess::new(None, "lit").expect("Failed to load 'lit' leptess data model");
+    lt.set_image(new_image_path).expect("Failed to set image path for OCR");
 
-    let result = lt.get_utf8_text().unwrap();
-    dir.close().unwrap();
+    let result = lt.get_utf8_text().expect("Failed to extract utf-8 data");
+    dir.close().expect("Failed to drop temp directory and free hard disk");
     result.trim().to_string()
 }
