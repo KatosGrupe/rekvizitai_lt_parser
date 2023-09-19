@@ -9,17 +9,17 @@ edition = "2021"
 [dependencies]
 actix-rt = "*"
 actix-web = "*"
-clap = { version = "=4.2.0", features = ["derive"] }
+clap = { features = ["derive"], version = "=4.2" }
 env_logger = "*"
-file_diff = "*"
-futures = "*"
-html5ever = "*"
 image = "*"
-json = "*"
 leptess = "*"
 log = "*"
 regex = "*"
-reqwest = "*"
+reqwest = "0.11.0"
+scraper = "*"
 serde = { features = ["derive"], version = "*" }
-soup = "*"
+serde_json = "*"
 tempfile = "*"
+thiserror = "1.0"
+url = "*"
+tokio = { features = ["full"], version = "*" }

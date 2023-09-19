@@ -1,180 +1,103 @@
-extern crate image;
-extern crate regex;
-extern crate soup;
 use crate::entity::Entity;
-use crate::scraper::soup::NodeExt;
-use crate::scraper::soup::QueryBuilderExt;
-use image::GenericImageView;
+// use image::GenericImageView;
 use log::{debug, info, trace};
 use regex::Regex;
 use reqwest::Url;
-use soup::Soup;
+use thiserror::Error;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 
-pub async fn scrape_rekvizitai(url: String) -> Entity {
-    trace!("Scraping {}", url);
-    let log_url = url.clone();
-    let url = Url::parse(&url).unwrap();
+#[derive(Debug, Error)]
+pub enum DownloadError {
+    #[error("Failed to parse provided url to download")]
+    UrlParse(#[from] url::ParseError),
+}
+
+pub async fn download_page(url: &str) -> Result<String, DownloadError> {
+    let url = Url::parse(url)?;
     let document_string = reqwest::get(url).await.unwrap().text().await.unwrap();
-    let soup = Soup::new(&document_string[..]);
+    Ok(document_string)
+}
 
-    let tags = soup
-        .tag("div")
-        .attr("class", "info")
-        .find()
-        .unwrap()
-        .tag("table")
-        .find()
-        .unwrap()
-        .tag("tr")
-        .find_all();
+pub async fn scrape_rekvizitai(data: &str) -> Entity {
 
-    let mut entity = Entity::new();
-
-    let re = Regex::new(r#"src="([a-zA-Z0-9%/\.]+)""#).expect("Could not create regex parser");
-    for tag in tags {
-        let mut tags = tag.tag("td").find_all();
-
-        while let Some(tag) = tags.next() {
-            match tag.text().as_str() {
-                "Adresas" => entity.address.push_str(tags.next().unwrap().text().trim()),
-                "Atsiskaitomoji sąskaita" => entity
-                    .account_number
-                    .push_str(tags.next().unwrap().text().trim()),
-                "Bankas" => entity.bank.push_str(tags.next().unwrap().text().trim()),
-                "Darbo Laikas" => entity
-                    .business_hours
-                    .push_str(tags.next().unwrap().text().trim()),
-                "Įmonės kodas" => entity
-                    .registration_id
-                    .push_str(tags.next().expect("Could not find next tag").text().trim()),
-                "Mobilus telefonas" => {
-                    let text = &tags.next().unwrap().display();
-                    entity
-                        .mobile_phone
-                        .push_str(&match re.captures(text).map(|c| async move {
-                            let link = c.get(1).unwrap().as_str();
-                            let url = format!("{}{}", "https://rekvizitai.vz.lt", link);
-                            extract_text_from_url(Url::parse(&url).expect("Could not parse ze URL"))
-                                .await
-                        }) {
-                            Some(fut) => fut.await,
-                            None => "".to_string(),
-                        });
-                }
-                "PVM mokėtojo kodas" => entity.vat_id.push_str(tags.next().unwrap().text().trim()),
-                "Telefonas" => {
-                    let text = &tags.next().unwrap().display();
-                    entity
-                        .mobile_phone
-                        .push_str(&match re.captures(text).map(|c| async move {
-                            let link = c.get(1).unwrap().as_str();
-                            let url = format!("{}{}", "https://rekvizitai.vz.lt", link);
-                            extract_text_from_url(Url::parse(&url).expect("Could not parse ze URL"))
-                                .await
-                        }) {
-                            Some(fut) => fut.await,
-                            None => "".to_string(),
-                        });
-                }
-                "Tinklalapis" => entity.website.push_str(tags.next().unwrap().text().trim()),
-                "Vadovas" => entity.ceo.push_str(tags.next().unwrap().text().trim()),
-                "Vidutinis atlyginimas" => entity
-                    .average_wage
-                    .push_str(tags.next().unwrap().text().trim()),
-                _ => {}
+    let mut result = Entity::new();
+    use scraper::Html;
+    use scraper::Selector;
+    let document = Html::parse_document(data);
+    let products_selector = Selector::parse("td[class=name]").expect("Products selector expected to parse correctly");
+    let values_selector = Selector::parse("td[class=value]").expect("Values selector expected to parse correctly");
+    let image_selector = Selector::parse("img").expect("Image selector expected to parse correctly");
+    for node in document.select(&products_selector)
+                        .into_iter()
+                        .zip(document.select(&values_selector)) {
+        match node.0.inner_html().as_ref() {
+            "Įmonės kodas" => result.registration_id = node.1.inner_html().trim().to_string(),
+            "PVM mokėtojo kodas" => result.vat_id = node.1.inner_html().trim().to_string(),
+            "Vadovas" => result.ceo = node.1.inner_html().trim().to_string(),
+            "Adresas" => result.address = node.1.inner_html().trim().split('\n').nth(0).unwrap_or("").to_string(),
+            "Telefonas" => {
+                result.phone = match node.1.select(&image_selector).nth(0) {
+                    Some(val) => {
+                        let src = val.value().attr("data-cfsrc")
+                                             .expect("Img tag found but it's missing data-cfsrc attribute (Update scraper code required)");
+                        let url = format!("https://rekvizitai.vz.lt{}", src);
+                        download_and_extract_text(&url).await
+                    }
+                    None => "".to_string()
+                };
             }
+            "Mobilus telefonas" => {
+                result.mobile_phone = match node.1.select(&image_selector).nth(0) {
+                    Some(val) => {
+                        let src = val.value().attr("data-cfsrc")
+                                             .expect("Img tag found but it's missing data-cfsrc attribute (Update scraper code required)");
+                        let url = format!("https://rekvizitai.vz.lt{}", src);
+                        download_and_extract_text(&url).await
+                    }
+                    None => "".to_string()
+                };
+            }
+            "Faksas" => {}
+            "El. pašto adresas" => {}
+            "Tinklalapis" => {
+                let url_selector = Selector::parse("a").expect("Url selector expected to parse correctly");
+                result.website = match node.1.select(&url_selector).nth(0) {
+                    Some(val) => val.value().attr("href")
+                                            .expect("<a> tag found but it's missing href attribute (Update scraper code required)"),
+                    None => ""
+                }.to_string();
+            }
+            x => println!("{} is unhandled: {:?}", x, node.1.inner_html().trim()),
         }
     }
-    let header = soup.tag("h1").attr("class", "fn").find().unwrap().text();
-    let re = Regex::new(r#"(.+), ([A-ZĄČĘĖĮŠŲŪŽš]+)"#).expect("Could not create regex parser 2");
-    for cap in re.captures_iter(&header) {
-        entity.name.push_str(&cap[1]);
-        entity.entity_type.push_str(&cap[2]);
-    }
-    let re = Regex::new(r#"([A-ZĄČĘĖĮŠŲŪŽš]+) "(.+)""#).expect("Could not create regex parser 2");
-    for cap in re.captures_iter(&header) {
-        entity.name.push_str(&cap[2]);
-        entity.entity_type.push_str(&cap[1]);
-    }
 
-    info!("Entity (from url: {}): {:?}", log_url, entity);
-    entity
+    result
 }
 
-async fn extract_text_from_url(url: Url) -> String {
-    debug!("Image url: {}", url);
-    let image = reqwest::get(url).await.unwrap().bytes().await.unwrap();
-    let mut content = std::io::Cursor::new(image);
-    {
-        let mut out = std::fs::File::create("test.gif").unwrap();
-        std::io::copy(&mut content, &mut out).unwrap();
-    }
+pub async fn download_and_extract_text(url: &str) -> String {
+    let dir = tempfile::tempdir().unwrap();
 
-    let txt = extract_text_from_file("test.gif".to_string());
-    trace!("Extracted from image: {}", txt);
-    txt
-}
+    let image_bytes = reqwest::get(url).await.unwrap().bytes().await.unwrap();
+    let mut orig_image_path = dir.path().join("orig_image.gif");
+    let mut orig_image_file = File::create(orig_image_path.clone()).await.unwrap();
+    orig_image_file.write_all(&image_bytes).await.unwrap();
 
-fn extract_text_from_file(img: String) -> String {
-    let img = image::open(img).unwrap();
-    extract_text_from_image(img)
-}
-
-fn extract_text_from_image(img: image::DynamicImage) -> String {
+    //increase dimensions for better recognition
+    let dimensions = image::image_dimensions(orig_image_path.clone()).unwrap();
+    let old_img = image::io::Reader::open(orig_image_path).unwrap().decode().unwrap();
     let mut new_img =
-        image::DynamicImage::new_rgba8(100 + img.dimensions().0, 100 + img.dimensions().1);
-    image::imageops::overlay(&mut new_img, &img, 50, 50);
+        image::DynamicImage::new_rgba8(100 + dimensions.0, 100 + dimensions.1);
+    image::imageops::overlay(&mut new_img, &old_img, 50, 50);
 
-    new_img.save("data/test.png").unwrap();
+    let mut new_image_path = dir.path().join("new_image.png");
+    new_img.save(new_image_path.clone()).unwrap();
 
+    //run OCR
     let mut lt = leptess::LepTess::new(None, "lit").unwrap();
-    lt.set_image("data/test.png").unwrap();
-    lt.get_utf8_text().unwrap()
-}
+    lt.set_image(new_image_path).unwrap();
 
-#[cfg(test)]
-mod tests {
-    use crate::entity::Entity;
-    #[test]
-    fn scrape_rekvizitai() {
-        let mut expected = Entity::new();
-        expected
-            .address
-            .push_str("Žemaičių g. 28B, LT-44174 Kaunas");
-        expected.average_wage.push_str("1 394,94 € (2019 m. gruodis) \n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tAtlyginimų istorija »");
-        expected.ceo.push_str("Andrius Bagdonas, direktorius");
-        expected.mobile_phone.push_str("+370 611 57390\n");
-        expected.name.push_str("Katos grupė");
-        expected.entity_type.push_str("KB");
-        expected.phone.push_str("+370 37 440016\n");
-        expected.registration_id.push_str("300028287");
-        expected.vat_id.push_str("LT100001121613");
-        expected.website.push_str("http://www.kata.lt");
-
-        assert_eq!(
-            expected,
-            crate::scraper::scrape_rekvizitai(
-                "https://rekvizitai.vz.lt/imone/katos_grupe".to_string()
-            )
-        );
-    }
-
-    #[test]
-    fn scrape_rekvizitai_alt_header() {
-        let mut expected = Entity::new();
-        expected.account_number.push_str("LT247300010161303834");
-        expected
-            .address
-            .push_str("Gargždupio g. 11, Gargždai, LT-96100 Klaipėdos r.");
-        expected.ceo.push_str("Mantas Stalgys");
-        expected.mobile_phone.push_str("+370 37 440016\n");
-        expected.name.push_str("JOROMA");
-        expected.entity_type.push_str("MB");
-        expected.registration_id.push_str("305413988");
-
-        assert_eq!(
-            expected,
-            crate::scraper::scrape_rekvizitai("https://rekvizitai.vz.lt/imone/joroma".to_string())
-        );
-    }
+    let result = lt.get_utf8_text().unwrap();
+    dir.close().unwrap();
+    result.trim().to_string()
 }
