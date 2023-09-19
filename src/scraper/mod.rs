@@ -58,8 +58,6 @@ pub async fn scrape_rekvizitai(data: &str) -> Entity {
                     None => "".to_string()
                 };
             }
-            "Faksas" => {}
-            "El. pašto adresas" => {}
             "Tinklalapis" => {
                 let url_selector = Selector::parse("a").expect("Url selector expected to parse correctly");
                 result.website = match node.1.select(&url_selector).nth(0) {
@@ -68,6 +66,15 @@ pub async fn scrape_rekvizitai(data: &str) -> Entity {
                     None => ""
                 }.to_string();
             }
+            "Darbo laikas" |
+            "Darbuotojai" |
+            "El. pašto adresas" |
+            "Faksas" |
+            "Grynasis pelnas" |
+            "Pardavimo pajamos" |
+            "Pardavimo pelnas" |
+            "Transportas" |
+            "Vidutinis atlyginimas" => {}
             x => println!("{} is unhandled: {:?}", x, node.1.inner_html().trim()),
         }
     }
