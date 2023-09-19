@@ -5,6 +5,9 @@ mod entity;
 mod scraper;
 use clap::Parser;
 use log::info;
+use openssl::ssl::SslAcceptor;
+use openssl::ssl::SslFiletype;
+use openssl::ssl::SslMethod;
 
 #[derive(Parser)]
 struct Args {
@@ -38,10 +41,6 @@ async fn main() -> std::io::Result<()> {
         .set_private_key_file(args.key, SslFiletype::PEM)
         .unwrap();
     builder.set_certificate_chain_file(args.cert).unwrap();
-
-    let config = Configuration::parse();
-    let bind = config.bind.clone();
-
 
     HttpServer::new(|| {
         App::new()

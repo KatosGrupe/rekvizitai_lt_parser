@@ -8,12 +8,13 @@ edition = "2021"
 
 [dependencies]
 actix-rt = "*"
-actix-web = "*"
+actix-web = { features = ["openssl"], version = "*" }
 clap = { features = ["derive"], version = "=4.2" }
 env_logger = "*"
 image = "*"
 leptess = "*"
 log = "*"
+openssl = "*"
 regex = "*"
 reqwest = "0.11.0"
 scraper = "*"
@@ -21,5 +22,5 @@ serde = { features = ["derive"], version = "*" }
 serde_json = "*"
 tempfile = "*"
 thiserror = "1.0"
-url = "*"
 tokio = { features = ["full"], version = "*" }
+url = "*"
