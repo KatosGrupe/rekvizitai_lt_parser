@@ -32,13 +32,6 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
     let args = Args::parse();
 
-    let source = {
-        let mut result = String::new();
-        let mut f = File::open(format!("rekvizitai.html")).await.unwrap();
-        f.read_to_string(&mut result).await.unwrap();
-        result
-    };
-
     HttpServer::new(|| {
         App::new()
             .wrap(middleware::Logger::default())
