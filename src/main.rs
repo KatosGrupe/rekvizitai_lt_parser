@@ -5,9 +5,6 @@ mod entity;
 mod scraper;
 use clap::Parser;
 use log::info;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
-use tokio::io::AsyncReadExt;
 
 #[derive(Parser)]
 struct Args {
@@ -20,9 +17,9 @@ struct Request {
     url: String,
 }
 
-async fn parse(item: web::Json<Request>) -> HttpResponse {
-    info!("model: {:?}", &item);
-    let html = scraper::download_page(&item.url).await.unwrap();
+async fn parse(args: actix_web::web::Query<Request>) -> HttpResponse {
+    info!("model: {:?}", &args);
+    let html = scraper::download_page(&args.url).await.unwrap();
     let result = scraper::scrape_rekvizitai(&html).await;
     HttpResponse::Ok().json(result)
 }

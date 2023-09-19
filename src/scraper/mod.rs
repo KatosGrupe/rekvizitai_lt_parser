@@ -1,7 +1,5 @@
 use crate::entity::Entity;
-// use image::GenericImageView;
 use log::{debug, info, trace};
-use regex::Regex;
 use reqwest::Url;
 use thiserror::Error;
 use tokio::fs::File;
