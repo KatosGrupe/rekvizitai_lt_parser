@@ -1,5 +1,5 @@
 use crate::entity::Entity;
-use log::{debug, info, trace};
+use log::{info, warn};
 use reqwest::Url;
 use thiserror::Error;
 use tokio::fs::File;
@@ -73,7 +73,7 @@ pub async fn scrape_rekvizitai(data: &str) -> Entity {
             "Pardavimo pelnas" |
             "Transportas" |
             "Vidutinis atlyginimas" => {}
-            x => println!("{} is unhandled: {:?}", x, node.1.inner_html().trim()),
+            x => warn!("{} is unhandled: {:?}", x, node.1.inner_html().trim()),
         }
     }
 
